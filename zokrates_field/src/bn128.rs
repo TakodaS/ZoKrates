@@ -1,7 +1,7 @@
 use ark_bn254::Bn254;
-use ark_ec::PairingEngine;
+use ark_ec::pairing::Pairing;
 
-prime_field!("bn128", <Bn254 as PairingEngine>::Fr, G2Type::Fq2);
+prime_field!("bn128", <Bn254 as Pairing>::ScalarField, G2Type::Fq2);
 
 ark_extensions!(Bn254);
 

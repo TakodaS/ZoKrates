@@ -4087,7 +4087,7 @@ dependencies = [
  "ark-ff 0.4.2",
  "ark-gm17",
  "ark-r1cs-std 0.4.0",
- "ark-relations 0.3.0",
+ "ark-relations 0.4.0",
  "ark-std 0.4.0",
  "bellman_ce",
  "sapling-crypto_ce",

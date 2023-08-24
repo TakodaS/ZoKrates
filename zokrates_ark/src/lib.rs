@@ -2,7 +2,7 @@ pub mod gm17;
 pub mod groth16;
 pub mod marlin;
 
-use ark_ec::PairingEngine;
+use ark_ec::pairing::Pairing;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, LinearCombination,
     SynthesisError, Variable as ArkVariable,
@@ -40,10 +40,10 @@ impl<'a, T, I: IntoIterator<Item = Statement<'a, T>>> Computation<'a, T, I> {
 
 fn ark_combination<T: Field + ArkFieldExtensions>(
     l: LinComb<T>,
-    cs: &mut ConstraintSystem<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+    cs: &mut ConstraintSystem<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
     symbols: &mut BTreeMap<Variable, ArkVariable>,
     witness: &mut Witness<T>,
-) -> LinearCombination<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr> {
+) -> LinearCombination<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField> {
     l.value
         .into_iter()
         .map(|(k, v)| {
@@ -74,19 +74,19 @@ fn ark_combination<T: Field + ArkFieldExtensions>(
 }
 
 impl<'a, T: Field + ArkFieldExtensions, I: IntoIterator<Item = Statement<'a, T>>>
-    ConstraintSynthesizer<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>
+    ConstraintSynthesizer<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>
     for Computation<'a, T, I>
 {
     fn generate_constraints(
         self,
-        cs: ConstraintSystemRef<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+        cs: ConstraintSystemRef<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
     ) -> Result<(), SynthesisError> {
         // mapping from IR variables
         let mut symbols = BTreeMap::new();
 
         let mut witness = self.witness.unwrap_or_else(Witness::empty);
 
-        assert!(symbols.insert(Variable::one(), ConstraintSystem::<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>::one()).is_none());
+        assert!(symbols.insert(Variable::one(), ConstraintSystem::<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>::one()).is_none());
 
         match cs {
             ConstraintSystemRef::CS(rc) => {
@@ -132,7 +132,7 @@ impl<'a, T: Field + ArkFieldExtensions, I: IntoIterator<Item = Statement<'a, T>>
 impl<'a, T: Field + ArkFieldExtensions, I: IntoIterator<Item = Statement<'a, T>>>
     Computation<'a, T, I>
 {
-    pub fn public_inputs_values(&self) -> Vec<<T::ArkEngine as PairingEngine>::Fr> {
+    pub fn public_inputs_values(&self) -> Vec<<T::ArkEngine as Pairing>::ScalarField> {
         self.program
             .public_inputs_values(self.witness.as_ref().unwrap())
             .iter()
@@ -148,7 +148,7 @@ mod parse {
     use zokrates_proof_systems::{Fr, G1Affine, G2Affine, G2AffineFq, G2AffineFq2};
 
     pub fn parse_g1<T: Field + ArkFieldExtensions>(
-        e: &<T::ArkEngine as PairingEngine>::G1Affine,
+        e: &<T::ArkEngine as Pairing>::G1Affine,
     ) -> G1Affine {
         let mut bytes: Vec<u8> = Vec::new();
         e.write(&mut bytes).unwrap();
@@ -169,7 +169,7 @@ mod parse {
     }
 
     pub fn parse_g2<T: Field + ArkFieldExtensions>(
-        e: &<T::ArkEngine as PairingEngine>::G2Affine,
+        e: &<T::ArkEngine as Pairing>::G2Affine,
     ) -> G2Affine {
         let mut bytes: Vec<u8> = Vec::new();
         e.write(&mut bytes).unwrap();
@@ -217,7 +217,7 @@ mod parse {
         }
     }
 
-    pub fn parse_fr<T: ArkFieldExtensions>(e: &<T::ArkEngine as PairingEngine>::Fr) -> Fr {
+    pub fn parse_fr<T: ArkFieldExtensions>(e: &<T::ArkEngine as Pairing>::ScalarField) -> Fr {
         let mut bytes: Vec<u8> = Vec::new();
         e.write(&mut bytes).unwrap();
         bytes.reverse();
@@ -227,7 +227,7 @@ mod parse {
 }
 
 pub mod serialization {
-    use ark_ec::PairingEngine;
+    use ark_ec::pairing::Pairing;
     use ark_ff::FromBytes;
     use zokrates_field::ArkFieldExtensions;
     use zokrates_proof_systems::{G1Affine, G2Affine};
@@ -239,16 +239,16 @@ pub mod serialization {
         bytes
     }
 
-    pub fn to_g1<T: ArkFieldExtensions>(g1: G1Affine) -> <T::ArkEngine as PairingEngine>::G1Affine {
+    pub fn to_g1<T: ArkFieldExtensions>(g1: G1Affine) -> <T::ArkEngine as Pairing>::G1Affine {
         let mut bytes = vec![];
         bytes.append(&mut decode_hex(g1.0));
         bytes.append(&mut decode_hex(g1.1));
         bytes.push(0u8); // infinity flag
 
-        <T::ArkEngine as PairingEngine>::G1Affine::read(&*bytes).unwrap()
+        <T::ArkEngine as Pairing>::G1Affine::read(&*bytes).unwrap()
     }
 
-    pub fn to_g2<T: ArkFieldExtensions>(g2: G2Affine) -> <T::ArkEngine as PairingEngine>::G2Affine {
+    pub fn to_g2<T: ArkFieldExtensions>(g2: G2Affine) -> <T::ArkEngine as Pairing>::G2Affine {
         let mut bytes = vec![];
 
         match g2 {
@@ -266,6 +266,6 @@ pub mod serialization {
             }
         };
 
-        <T::ArkEngine as PairingEngine>::G2Affine::read(&*bytes).unwrap()
+        <T::ArkEngine as Pairing>::G2Affine::read(&*bytes).unwrap()
     }
 }

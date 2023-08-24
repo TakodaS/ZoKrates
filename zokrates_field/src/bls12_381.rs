@@ -1,7 +1,7 @@
 use ark_bls12_381::Bls12_381;
-use ark_ec::PairingEngine;
+use ark_ec::pairing::Pairing;
 
-prime_field!("bls12_381", <Bls12_381 as PairingEngine>::Fr, G2Type::Fq2);
+prime_field!("bls12_381", <Bls12_381 as Pairing>::ScalarField, G2Type::Fq2);
 
 ark_extensions!(Bls12_381);
 

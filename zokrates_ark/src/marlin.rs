@@ -5,7 +5,7 @@ use ark_marlin::{
 
 use ark_marlin::Marlin as ArkMarlin;
 
-use ark_ec::PairingEngine;
+use ark_ec::pairing::Pairing;
 use ark_ff::{to_bytes, FftField, FromBytes, ToBytes};
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::{
@@ -108,10 +108,10 @@ impl<D: Digest> FiatShamirRng for HashFiatShamirRng<D> {
 
 type PCInst<T> = MarlinKZG10<
     <T as ArkFieldExtensions>::ArkEngine,
-    DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+    DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
 >;
 type MarlinInst<T> = ArkMarlin<
-    <<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr,
+    <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField,
     PCInst<T>,
     HashFiatShamirRng<Keccak256>,
 >;
@@ -146,10 +146,10 @@ impl<T: Field + ArkFieldExtensions> UniversalBackend<T, marlin::Marlin> for Ark 
         let computation = Computation::without_witness(program);
 
         let srs = ark_marlin::UniversalSRS::<
-            <<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr,
+            <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField,
             MarlinKZG10<
                 T::ArkEngine,
-                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
             >,
         >::deserialize(&mut srs.as_slice())
         .unwrap();
@@ -166,7 +166,7 @@ impl<T: Field + ArkFieldExtensions> UniversalBackend<T, marlin::Marlin> for Ark 
         // Precompute some useful values for solidity contract
         let fs_seed = to_bytes![&MarlinInst::<T>::PROTOCOL_NAME, &vk].unwrap();
         let x_root_of_unity =
-            <<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr::get_root_of_unity(
+            <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField::get_root_of_unity(
                 vk.index_info.num_instance_variables,
             )
             .unwrap();
@@ -221,10 +221,10 @@ impl<T: Field + ArkFieldExtensions> Backend<T, marlin::Marlin> for Ark {
         let computation = Computation::with_witness(program, witness);
 
         let pk = IndexProverKey::<
-            <<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr,
+            <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField,
             MarlinKZG10<
                 T::ArkEngine,
-                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
             >,
         >::deserialize_unchecked(proving_key)
         .unwrap();
@@ -282,10 +282,10 @@ impl<T: Field + ArkFieldExtensions> Backend<T, marlin::Marlin> for Ark {
             .collect::<Vec<_>>();
 
         let proof = ArkProof::<
-            <<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr,
+            <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField,
             MarlinKZG10<
                 T::ArkEngine,
-                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
             >,
         > {
             commitments: proof
@@ -337,10 +337,10 @@ impl<T: Field + ArkFieldExtensions> Backend<T, marlin::Marlin> for Ark {
         };
 
         let vk = IndexVerifierKey::<
-            <<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr,
+            <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField,
             MarlinKZG10<
                 T::ArkEngine,
-                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as PairingEngine>::Fr>,
+                DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
             >,
         > {
             index_info: IndexInfo::new(

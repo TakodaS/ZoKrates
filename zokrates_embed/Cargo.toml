@@ -27,7 +27,7 @@ sapling-crypto_ce = { version = "^0.1", default-features = false, optional = tru
 ark-bls12-377 = { version = "^0.4.0", features = ["curve", "r1cs"], default-features = false, optional = true }
 ark-bw6-761 = { version = "^0.4.0", default-features = false, optional = true }
 ark-gm17 = { version = "^0.3.0", default-features = false, features = ["r1cs"], optional = true }
-ark-relations = { version = "^0.3.0", default-features = false, optional = true }
+ark-relations = { version = "^0.4.0", default-features = false, optional = true }
 ark-crypto-primitives = { version = "^0.4.0", default-features = false, features = ["r1cs"], optional = true }
 ark-r1cs-std = { version = "^0.4.0", default-features = false, optional = true }
 ark-std = { version = "^0.4.0", default-features = false, optional = true }
