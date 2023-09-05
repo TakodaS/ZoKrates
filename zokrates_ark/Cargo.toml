@@ -26,7 +26,7 @@ ark-ec = { version = "^0.4.0", default-features = false }
 ark-bn254 = { version = "^0.4.0", features = ["curve"], default-features = false }
 ark-bls12-377 = { version = "^0.4.0", features = ["curve"], default-features = false }
 ark-bw6-761 = { version = "^0.4.0", default-features = false }
-ark-gm17 = { version = "^0.3.0", default-features = false }
+ark-gm17 = {path = "../../gm17"}
 ark-groth16 = { version = "^0.4.0", default-features = false }
 ark-serialize = { version = "^0.4.0", default-features = false, features = ["std"] }
 ark-relations = { version = "^0.4.0", default-features = false }
