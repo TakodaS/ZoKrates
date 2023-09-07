@@ -2,6 +2,7 @@ use ark_bls12_377::{
     constraints::PairingVar as BLS12PairingVar, Bls12_377 as BLS12PairingEngine, Fq as BLS12Fq,
     Fq2 as BLS12Fq2,
 };
+use ark_serialize::{CanonicalSerialize, Compress};
 use ark_bw6_761::Fr as BW6Fr;
 use ark_ec::pairing::Pairing;
 use ark_ff::{BigInteger, One, PrimeField};
@@ -16,11 +17,11 @@ use ark_gm17::{constraints::GM17VerifierGadget, Proof, VerifyingKey, GM17};
 use ark_r1cs_std::alloc::{AllocVar, AllocationMode};
 
 use crate::Constraint;
-use ark_crypto_primitives::snark;
+use ark_crypto_primitives::snark::SNARK;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::ToBitsGadget;
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
-use ark_std::test_rng;
+use ark_std::rand::{rngs, SeedableRng, Rng};
 use std::str::FromStr;
 use zokrates_field::Field;
 
@@ -58,7 +59,8 @@ pub fn generate_verify_constraints(
     let cs_sys = ConstraintSystem::<BW6Fr>::new();
     let cs = ConstraintSystemRef::new(cs_sys);
 
-    let mut rng = test_rng(); // has a fixed seed
+    let mut _rng = ark_std::test_rng();
+    let mut rng = rngs::StdRng::from_seed(_rng.gen());
     let circuit = DefaultCircuit { public_input_size };
 
     let (pk, vk) = GM17Snark::circuit_specific_setup(circuit, &mut rng).unwrap();
@@ -75,13 +77,13 @@ pub fn generate_verify_constraints(
 
     let inputs = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::InputVar::new(input_booleans);
 
     let proof = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::new_proof_unchecked(
         ns!(cs, "alloc_proof"),
@@ -92,7 +94,7 @@ pub fn generate_verify_constraints(
 
     let vk = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::new_verification_key_unchecked(
         ns!(cs, "alloc_vk"), || Ok(vk), AllocationMode::Witness
@@ -101,7 +103,7 @@ pub fn generate_verify_constraints(
 
     let res = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::verify(&vk, &inputs, &proof)
     .unwrap();
@@ -199,13 +201,13 @@ pub fn generate_verify_witness<T: Field>(inputs: &[T], proof: &[T], vk: &[T]) ->
 
     let inputs = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::InputVar::new(input_booleans);
 
     let proof = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::new_proof_unchecked(
         ns!(cs, "alloc_proof"),
@@ -222,7 +224,7 @@ pub fn generate_verify_witness<T: Field>(inputs: &[T], proof: &[T], vk: &[T]) ->
 
     let vk = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::new_verification_key_unchecked(
         ns!(cs, "alloc_vk"),
@@ -246,7 +248,7 @@ pub fn generate_verify_witness<T: Field>(inputs: &[T], proof: &[T], vk: &[T]) ->
 
     let _ = <VerifierGadget as SNARKGadget<
         <BLS12PairingEngine as Pairing>::ScalarField,
-        <BLS12PairingEngine as Pairing>::TargetField,
+        <BLS12PairingEngine as Pairing>::BaseField,
         GM17Snark,
     >>::verify(&vk, &inputs, &proof)
     .unwrap();
@@ -260,7 +262,7 @@ pub fn generate_verify_witness<T: Field>(inputs: &[T], proof: &[T], vk: &[T]) ->
         .clone()
         .into_iter()
         .chain(witness_variables)
-        .map(|fq| T::from_byte_vector(fq.into_repr().to_bytes_le()))
+        .map(|fq| T::from_byte_vector(fq.into_bigint().to_bytes_le()))
         .collect()
 }
 
@@ -299,13 +301,13 @@ fn new_g2<T: Field>(flat: &[T]) -> G2 {
     )
 }
 
-pub fn from_ark<T: zokrates_field::Field, E: Pairing>(c: Constraint<E::TargetField>) -> Constraint<T> {
+pub fn from_ark<T: zokrates_field::Field, E: Pairing>(c: Constraint<E::BaseField>) -> Constraint<T> {
     Constraint {
         a: c.a
             .into_iter()
             .map(|(fq, index)| {
                 let mut res: Vec<u8> = vec![];
-                fq.into_repr().write_le(&mut res).unwrap();
+                fq.serialize_with_mode(&mut res, Compress::No).unwrap();
                 (T::from_byte_vector(res), index)
             })
             .collect(),
@@ -313,7 +315,7 @@ pub fn from_ark<T: zokrates_field::Field, E: Pairing>(c: Constraint<E::TargetFie
             .into_iter()
             .map(|(fq, index)| {
                 let mut res: Vec<u8> = vec![];
-                fq.into_repr().write_le(&mut res).unwrap();
+                fq.serialize_with_mode(&mut res, Compress::No).unwrap();
                 (T::from_byte_vector(res), index)
             })
             .collect(),
@@ -321,7 +323,7 @@ pub fn from_ark<T: zokrates_field::Field, E: Pairing>(c: Constraint<E::TargetFie
             .into_iter()
             .map(|(fq, index)| {
                 let mut res: Vec<u8> = vec![];
-                fq.into_repr().write_le(&mut res).unwrap();
+                fq.serialize_with_mode(&mut res, Compress::No).unwrap();
                 (T::from_byte_vector(res), index)
             })
             .collect(),
