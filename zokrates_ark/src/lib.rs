@@ -143,7 +143,7 @@ impl<'a, T: Field + ArkFieldExtensions, I: IntoIterator<Item = Statement<'a, T>>
 
 mod parse {
     use super::*;
-    use ark_ff::ToBytes;
+    use ark_serialize::CanonicalSerialize;
     use zokrates_field::G2Type;
     use zokrates_proof_systems::{Fr, G1Affine, G2Affine, G2AffineFq, G2AffineFq2};
 
@@ -151,7 +151,7 @@ mod parse {
         e: &<T::ArkEngine as Pairing>::G1Affine,
     ) -> G1Affine {
         let mut bytes: Vec<u8> = Vec::new();
-        e.write(&mut bytes).unwrap();
+        e.serialize_uncompressed(&mut bytes).unwrap();
 
         let length = bytes.len() - 1; // [x, y, infinity] - infinity
         let element_length = length / 2;
@@ -172,7 +172,7 @@ mod parse {
         e: &<T::ArkEngine as Pairing>::G2Affine,
     ) -> G2Affine {
         let mut bytes: Vec<u8> = Vec::new();
-        e.write(&mut bytes).unwrap();
+        e.serialize_uncompressed(&mut bytes).unwrap();
 
         let length = bytes.len() - 1; // [x, y, infinity] - infinity
 
@@ -219,7 +219,7 @@ mod parse {
 
     pub fn parse_fr<T: ArkFieldExtensions>(e: &<T::ArkEngine as Pairing>::ScalarField) -> Fr {
         let mut bytes: Vec<u8> = Vec::new();
-        e.write(&mut bytes).unwrap();
+        e.serialize_uncompressed(&mut bytes).unwrap();
         bytes.reverse();
 
         format!("0x{}", hex::encode(&bytes))
@@ -228,7 +228,7 @@ mod parse {
 
 pub mod serialization {
     use ark_ec::pairing::Pairing;
-    use ark_ff::FromBytes;
+    use ark_serialize::CanonicalDeserialize;
     use zokrates_field::ArkFieldExtensions;
     use zokrates_proof_systems::{G1Affine, G2Affine};
 
@@ -245,7 +245,7 @@ pub mod serialization {
         bytes.append(&mut decode_hex(g1.1));
         bytes.push(0u8); // infinity flag
 
-        <T::ArkEngine as Pairing>::G1Affine::read(&*bytes).unwrap()
+        <T::ArkEngine as Pairing>::G1Affine::deserialize_uncompressed(&*bytes).unwrap()
     }
 
     pub fn to_g2<T: ArkFieldExtensions>(g2: G2Affine) -> <T::ArkEngine as Pairing>::G2Affine {
@@ -266,6 +266,6 @@ pub mod serialization {
             }
         };
 
-        <T::ArkEngine as Pairing>::G2Affine::read(&*bytes).unwrap()
+        <T::ArkEngine as Pairing>::G2Affine::deserialize_uncompressed(&*bytes).unwrap()
     }
 }

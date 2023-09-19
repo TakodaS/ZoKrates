@@ -1,12 +1,12 @@
 use ark_marlin::{
-    ahp::indexer::IndexInfo, ahp::prover::ProverMsg, rng::FiatShamirRng, IndexProverKey,
+    ahp::indexer::IndexInfo, ahp::prover::ProverMsg, rng::SimplePoseidonRng, IndexProverKey,
     IndexVerifierKey, Proof as ArkProof,
 };
 
 use ark_marlin::Marlin as ArkMarlin;
 
 use ark_ec::pairing::Pairing;
-use ark_ff::{to_bytes, FftField, FromBytes, ToBytes};
+use ark_ff::FftField;
 use ark_poly::univariate::DensePolynomial;
 use ark_poly_commit::{
     data_structures::BatchLCProof,
@@ -15,7 +15,7 @@ use ark_poly_commit::{
     kzg10::VerifierKey as KZG10VerifierKey,
     marlin_pc::{Commitment, MarlinKZG10, VerifierKey},
 };
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress};
 use digest::Digest;
 use rand_0_8::{CryptoRng, Error, RngCore, SeedableRng};
 use sha3::Keccak256;
@@ -35,85 +35,16 @@ use zokrates_proof_systems::{Backend, Proof, SetupKeypair, UniversalBackend};
 const MINIMUM_CONSTRAINT_COUNT: usize = 2;
 
 /// Simple hash-based Fiat-Shamir RNG that allows for efficient solidity verification.
-pub struct HashFiatShamirRng<D: Digest> {
-    seed: [u8; 32],
-    ctr: u32,
-    digest: PhantomData<D>,
-}
-
-impl<D: Digest> RngCore for HashFiatShamirRng<D> {
-    fn next_u32(&mut self) -> u32 {
-        let mut bytes = [0; 4];
-        self.fill_bytes(&mut bytes);
-        u32::from_be_bytes(bytes)
-    }
-
-    fn next_u64(&mut self) -> u64 {
-        let mut bytes = [0; 8];
-        self.fill_bytes(&mut bytes);
-        u64::from_be_bytes(bytes)
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        let bytes_per_hash = D::output_size();
-        let n_hashes = (dest.len() - 1) / bytes_per_hash + 1;
-        let mut seed_ctr = self.seed.to_vec();
-        for i in 0..n_hashes {
-            seed_ctr.extend_from_slice(&self.ctr.to_be_bytes());
-            let mut h = D::digest(&seed_ctr).to_vec();
-            h.reverse(); // Switch to big endian representation for solidity translation
-            let len = dest.len();
-            if i * bytes_per_hash + bytes_per_hash >= len {
-                dest[i * bytes_per_hash..]
-                    .copy_from_slice(&h.as_slice()[..len - i * bytes_per_hash]);
-            } else {
-                dest[i * bytes_per_hash..i * bytes_per_hash + bytes_per_hash]
-                    .copy_from_slice(h.as_slice());
-            }
-            self.ctr += 1;
-            seed_ctr.truncate(seed_ctr.len() - 4);
-        }
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
-}
-
-impl<D: Digest> FiatShamirRng for HashFiatShamirRng<D> {
-    fn initialize<'a, T: 'a + ToBytes>(initial_input: &'a T) -> Self {
-        let mut bytes = Vec::new();
-        initial_input
-            .write(&mut bytes)
-            .expect("failed to convert to bytes");
-        let seed = FromBytes::read(D::digest(&bytes).as_ref()).expect("failed to get [u8; 32]");
-        Self {
-            seed,
-            ctr: 0,
-            digest: PhantomData,
-        }
-    }
-
-    fn absorb<'a, T: 'a + ToBytes>(&mut self, new_input: &'a T) {
-        let mut bytes = Vec::new();
-        new_input
-            .write(&mut bytes)
-            .expect("failed to convert to bytes");
-        bytes.extend_from_slice(&self.seed);
-        self.seed = FromBytes::read(D::digest(&bytes).as_ref()).expect("failed to get [u8; 32]");
-        self.ctr = 0;
-    }
-}
 
 type PCInst<T> = MarlinKZG10<
     <T as ArkFieldExtensions>::ArkEngine,
     DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
+    SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
 >;
 type MarlinInst<T> = ArkMarlin<
     <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField,
     PCInst<T>,
-    HashFiatShamirRng<Keccak256>,
+    SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
 >;
 
 impl<T: Field + ArkFieldExtensions> UniversalBackend<T, marlin::Marlin> for Ark {
@@ -127,7 +58,7 @@ impl<T: Field + ArkFieldExtensions> UniversalBackend<T, marlin::Marlin> for Ark 
         .unwrap();
 
         let mut res = vec![];
-        srs.serialize(&mut res).unwrap();
+        srs.serialize_compressed(&mut res).unwrap();
         res
     }
 
@@ -150,8 +81,10 @@ impl<T: Field + ArkFieldExtensions> UniversalBackend<T, marlin::Marlin> for Ark 
             MarlinKZG10<
                 T::ArkEngine,
                 DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
             >,
-        >::deserialize(&mut srs.as_slice())
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
+        >::deserialize_compressed(&mut srs.as_slice())
         .unwrap();
 
         let (pk, vk) = MarlinInst::<T>::index(&srs, computation)
@@ -161,13 +94,15 @@ impl<T: Field + ArkFieldExtensions> UniversalBackend<T, marlin::Marlin> for Ark 
         })?;
 
         let mut serialized_pk: Vec<u8> = Vec::new();
-        pk.serialize_unchecked(&mut serialized_pk).unwrap();
+        pk.serialize_compressed(&mut serialized_pk).unwrap();
 
         // Precompute some useful values for solidity contract
-        let fs_seed = to_bytes![&MarlinInst::<T>::PROTOCOL_NAME, &vk].unwrap();
+        let mut fs_seed = Vec::new();
+        &MarlinInst::<T>::PROTOCOL_NAME.serialize_with_mode(&mut fs_seed, Compress::No);
+        &vk.serialize_with_mode(&mut fs_seed, Compress::No);
         let x_root_of_unity =
             <<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField::get_root_of_unity(
-                vk.index_info.num_instance_variables,
+                vk.index_info.num_instance_variables as u64,
             )
             .unwrap();
 
@@ -225,8 +160,10 @@ impl<T: Field + ArkFieldExtensions> Backend<T, marlin::Marlin> for Ark {
             MarlinKZG10<
                 T::ArkEngine,
                 DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
             >,
-        >::deserialize_unchecked(proving_key)
+            SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
+        >::deserialize_compressed(proving_key)
         .unwrap();
 
         let public_inputs = computation.public_inputs_values();
@@ -286,7 +223,9 @@ impl<T: Field + ArkFieldExtensions> Backend<T, marlin::Marlin> for Ark {
             MarlinKZG10<
                 T::ArkEngine,
                 DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
             >,
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
         > {
             commitments: proof
                 .proof
@@ -341,7 +280,9 @@ impl<T: Field + ArkFieldExtensions> Backend<T, marlin::Marlin> for Ark {
             MarlinKZG10<
                 T::ArkEngine,
                 DensePolynomial<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::ScalarField>,
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
             >,
+                SimplePoseidonRng<<<T as ArkFieldExtensions>::ArkEngine as Pairing>::BaseField>
         > {
             index_info: IndexInfo::new(
                 vk.num_variables,

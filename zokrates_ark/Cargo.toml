@@ -30,7 +30,7 @@ ark-gm17 = {path = "../../gm17"}
 ark-groth16 = { version = "^0.4.0", default-features = false }
 ark-serialize = { version = "^0.4.0", default-features = false, features = ["std"] }
 ark-relations = { version = "^0.4.0", default-features = false }
-ark-marlin = { git = "https://github.com/arkworks-rs/marlin", rev = "63cfd82", default-features = false }
+ark-marlin = {path = "../../marlin"}
 ark-poly = { version = "^0.4.0", default-features = false }
 ark-poly-commit = { version = "^0.4.0", default-features = false }
 ark-crypto-primitives = { version = "^0.4.0", default-features = false }

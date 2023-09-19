@@ -1,6 +1,6 @@
-use ark_crypto_primitives::SNARK;
+use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::{
-    prepare_verifying_key, verify_proof, Groth16, PreparedVerifyingKey, Proof as ArkProof,
+    prepare_verifying_key, Groth16, PreparedVerifyingKey, Proof as ArkProof,
     ProvingKey, VerifyingKey,
 };
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -38,7 +38,7 @@ impl<T: Field + ArkFieldExtensions> Backend<T, G16> for Ark {
             .collect::<Vec<_>>();
 
         let pk =
-            ProvingKey::<<T as ArkFieldExtensions>::ArkEngine>::deserialize_unchecked(proving_key)
+            ProvingKey::<<T as ArkFieldExtensions>::ArkEngine>::deserialize_compressed(proving_key)
                 .unwrap();
 
         let proof = Groth16::<T::ArkEngine>::prove(&pk, computation, rng).unwrap();
@@ -82,7 +82,7 @@ impl<T: Field + ArkFieldExtensions> Backend<T, G16> for Ark {
             })
             .collect::<Vec<_>>();
 
-        verify_proof(&pvk, &ark_proof, &public_inputs).unwrap()
+        Groth16::<<T as zokrates_field::ArkFieldExtensions>::ArkEngine>::verify_proof(&pvk, &ark_proof, &public_inputs).unwrap()
     }
 }
 
@@ -95,7 +95,7 @@ impl<T: Field + ArkFieldExtensions> NonUniversalBackend<T, G16> for Ark {
         let (pk, vk) = Groth16::<T::ArkEngine>::circuit_specific_setup(computation, rng).unwrap();
 
         let mut pk_vec: Vec<u8> = Vec::new();
-        pk.serialize_unchecked(&mut pk_vec).unwrap();
+        pk.serialize_compressed(&mut pk_vec).unwrap();
 
         let vk = VerificationKey {
             alpha: parse_g1::<T>(&vk.alpha_g1),

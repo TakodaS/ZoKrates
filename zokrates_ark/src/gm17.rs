@@ -1,4 +1,4 @@
-use ark_crypto_primitives::SNARK;
+use ark_crypto_primitives::snark::SNARK;
 use ark_gm17::{
     prepare_verifying_key, verify_proof, PreparedVerifyingKey, Proof as ArkProof, ProvingKey,
     VerifyingKey, GM17 as ArkGM17,
@@ -24,7 +24,7 @@ impl<T: Field + ArkFieldExtensions> NonUniversalBackend<T, GM17> for Ark {
         let (pk, vk) = ArkGM17::<T::ArkEngine>::circuit_specific_setup(computation, rng).unwrap();
 
         let mut pk_vec: Vec<u8> = Vec::new();
-        pk.serialize_unchecked(&mut pk_vec).unwrap();
+        pk.serialize_compressed(&mut pk_vec).unwrap();
 
         let vk = VerificationKey {
             h: parse_g2::<T>(&vk.h_g2),
@@ -60,7 +60,7 @@ impl<T: Field + ArkFieldExtensions> Backend<T, GM17> for Ark {
             .collect::<Vec<_>>();
 
         let pk =
-            ProvingKey::<<T as ArkFieldExtensions>::ArkEngine>::deserialize_unchecked(proving_key)
+            ProvingKey::<<T as ArkFieldExtensions>::ArkEngine>::deserialize_compressed(proving_key)
                 .unwrap();
 
         let proof = ArkGM17::<T::ArkEngine>::prove(&pk, computation, rng).unwrap();
